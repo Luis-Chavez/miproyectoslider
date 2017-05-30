@@ -66,10 +66,10 @@ function rotate() {
 }
 	</script>
 <script>
-//<![CDATA[
+document.write('//<![CDATA[
 $(document).ready(function () {
 FeaturedPost({
-blogURL:"https://'+users+'.blogspot.com/",
+blogURL:"'+users+'",
 MaxPost:8,
 idcontaint:"#featuredpost",
 ImageSize:300,
@@ -78,7 +78,7 @@ autoplay:true,
 tagName:false
 });
 });
-//]]>
+//]]>');
 </script>
 
 
