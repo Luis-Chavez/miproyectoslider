@@ -42,7 +42,7 @@ function getQueryVariable(variable) {
 	}
 	return(false);
 }
-var users = getQueryVariable("user");
+var homePage: getQueryVariable("url");
 </script>
 	
 </head>
@@ -174,7 +174,7 @@ document.write("<div class='itotal'><span> <a href='"+ListBlogLink+"/search'>Vie
 } 
 </script>
 <script> 
-var ListBlogLink = "'+ users +'"; 
+var ListBlogLink = "'+ homePage +'"; 
 var ListCount = 5; 
 </script>
 <script> 
