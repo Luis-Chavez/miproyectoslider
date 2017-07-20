@@ -29,493 +29,30 @@
 	
 
 	
-	  <script>
-	/*
-    jQuery News Ticker is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, version 2 of the License.
- 
-    jQuery News Ticker is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with jQuery News Ticker.  If not, see <http://www.gnu.org/licenses/>.
-*/
-(function($){  
-	$.fn.ticker = function(options) { 
-		// Extend our default options with those provided.
-		// Note that the first arg to extend is an empty object -
-		// this is to keep from overriding our "defaults" object.
-		var opts = $.extend({}, $.fn.ticker.defaults, options); 
-
-		// check that the passed element is actually in the DOM
-		if ($(this).length == 0) {
-			if (window.console && window.console.log) {
-				window.console.log('Element does not exist in DOM!');
-			}
-			else {
-				alert('Element does not exist in DOM!');		
-			}
-			return false;
-		}
-		
-		/* Get the id of the UL to get our news content from */
-		var newsID = '#' + $(this).attr('id');
-
-		/* Get the tag type - we will check this later to makde sure it is a UL tag */
-		var tagType = $(this).get(0).tagName; 	
-
-		return this.each(function() { 
-			// get a unique id for this ticker
-			var uniqID = getUniqID();
-			
-			/* Internal vars */
-			var settings = {				
-				position: 0,
-				time: 0,
-				distance: 0,
-				newsArr: {},
-				play: true,
-				paused: false,
-				contentLoaded: false,
-				dom: {
-					contentID: '#ticker-content-' + uniqID,
-					titleID: '#ticker-title-' + uniqID,
-					titleElem: '#ticker-title-' + uniqID + ' SPAN',
-					tickerID : '#ticker-' + uniqID,
-					wrapperID: '#ticker-wrapper-' + uniqID,
-					revealID: '#ticker-swipe-' + uniqID,
-					revealElem: '#ticker-swipe-' + uniqID + ' SPAN',
-					controlsID: '#ticker-controls-' + uniqID,
-					prevID: '#prev-' + uniqID,
-					nextID: '#next-' + uniqID,
-					playPauseID: '#play-pause-' + uniqID
-				}
-			};
-
-			// if we are not using a UL, display an error message and stop any further execution
-			if (tagType != 'UL' && tagType != 'OL' && opts.htmlFeed === true) {
-				debugError('Cannot use <' + tagType.toLowerCase() + '> type of element for this plugin - must of type <ul> or <ol>');
-				return false;
-			}
-
-			// set the ticker direction
-			opts.direction == 'rtl' ? opts.direction = 'right' : opts.direction = 'left';
-			
-			// lets go...
-			initialisePage();
-			/* Function to get the size of an Object*/
-			function countSize(obj) {
-			    var size = 0, key;
-			    for (key in obj) {
-			        if (obj.hasOwnProperty(key)) size++;
-			    }
-			    return size;
-			};
-
-			function getUniqID() {
-				var newDate = new Date;
-				return newDate.getTime();			
-			}
-			
-			/* Function for handling debug and error messages */ 
-			function debugError(obj) {
-				if (opts.debugMode) {
-					if (window.console && window.console.log) {
-						window.console.log(obj);
-					}
-					else {
-						alert(obj);			
-					}
-				}
-			}
-
-			/* Function to setup the page */
-			function initialisePage() {
-				// process the content for this ticker
-				processContent();
-				
-				// add our HTML structure for the ticker to the DOM
-				$(newsID).wrap('<div id="' + settings.dom.wrapperID.replace('#', '') + '"></div>');
-				
-				// remove any current content inside this ticker
-				$(settings.dom.wrapperID).children().remove();
-				
-				$(settings.dom.wrapperID).append('<div id="' + settings.dom.tickerID.replace('#', '') + '" class="ticker"><div id="' + settings.dom.titleID.replace('#', '') + '" class="ticker-title"><span><!-- --></span></div><p id="' + settings.dom.contentID.replace('#', '') + '" class="ticker-content"></p><div id="' + settings.dom.revealID.replace('#', '') + '" class="ticker-swipe"><span><!-- --></span></div></div>');
-				$(settings.dom.wrapperID).removeClass('no-js').addClass('ticker-wrapper has-js ' + opts.direction);
-				// hide the ticker
-				$(settings.dom.tickerElem + ',' + settings.dom.contentID).hide();
-				// add the controls to the DOM if required
-				if (opts.controls) {
-					// add related events - set functions to run on given event
-					$(settings.dom.controlsID).live('click mouseover mousedown mouseout mouseup', function (e) {
-						var button = e.target.id;
-						if (e.type == 'click') {	
-							switch (button) {
-								case settings.dom.prevID.replace('#', ''):
-									// show previous item
-									settings.paused = true;
-									$(settings.dom.playPauseID).addClass('paused');
-									manualChangeContent('prev');
-									break;
-								case settings.dom.nextID.replace('#', ''):
-									// show next item
-									settings.paused = true;
-									$(settings.dom.playPauseID).addClass('paused');
-									manualChangeContent('next');
-									break;
-								case settings.dom.playPauseID.replace('#', ''):
-									// play or pause the ticker
-									if (settings.play == true) {
-										settings.paused = true;
-										$(settings.dom.playPauseID).addClass('paused');
-										pauseTicker();
-									}
-									else {
-										settings.paused = false;
-										$(settings.dom.playPauseID).removeClass('paused');
-										restartTicker();
-									}
-									break;
-							}	
-						}
-						else if (e.type == 'mouseover' && $('#' + button).hasClass('controls')) {
-							$('#' + button).addClass('over');
-						}
-						else if (e.type == 'mousedown' && $('#' + button).hasClass('controls')) {
-							$('#' + button).addClass('down');
-						}
-						else if (e.type == 'mouseup' && $('#' + button).hasClass('controls')) {
-							$('#' + button).removeClass('down');
-						}
-						else if (e.type == 'mouseout' && $('#' + button).hasClass('controls')) {
-							$('#' + button).removeClass('over');
-						}
-					});
-					// add controls HTML to DOM
-					$(settings.dom.wrapperID).append('<ul id="' + settings.dom.controlsID.replace('#', '') + '" class="ticker-controls"><li id="' + settings.dom.playPauseID.replace('#', '') + '" class="jnt-play-pause controls"><a href=""><!-- --></a></li><li id="' + settings.dom.prevID.replace('#', '') + '" class="jnt-prev controls"><a href=""><!-- --></a></li><li id="' + settings.dom.nextID.replace('#', '') + '" class="jnt-next controls"><a href=""><!-- --></a></li></ul>');
-				}
-				if (opts.displayType != 'fade') {
-                	// add mouse over on the content
-               		$(settings.dom.contentID).mouseover(function () {
-               			if (settings.paused == false) {
-               				pauseTicker();
-               			}
-               		}).mouseout(function () {
-               			if (settings.paused == false) {
-               				restartTicker();
-               			}
-               		});
-				}
-				// we may have to wait for the ajax call to finish here
-				if (!opts.ajaxFeed) {
-					setupContentAndTriggerDisplay();
-				}
-			}
-
-			/* Start to process the content for this ticker */
-			function processContent() {
-				// check to see if we need to load content
-				if (settings.contentLoaded == false) {
-					// construct content
-					if (opts.ajaxFeed) {
-						if (opts.feedType == 'xml') {							
-							$.ajax({
-								url: opts.feedUrl,
-								cache: false,
-								dataType: opts.feedType,
-								async: true,
-								success: function(data){
-									count = 0;	
-									// get the 'root' node
-									for (var a = 0; a < data.childNodes.length; a++) {
-										if (data.childNodes[a].nodeName == 'rss') {
-											xmlContent = data.childNodes[a];
-										}
-									}
-									// find the channel node
-									for (var i = 0; i < xmlContent.childNodes.length; i++) {
-										if (xmlContent.childNodes[i].nodeName == 'channel') {
-											xmlChannel = xmlContent.childNodes[i];
-										}		
-									}
-									// for each item create a link and add the article title as the link text
-									for (var x = 0; x < xmlChannel.childNodes.length; x++) {
-										if (xmlChannel.childNodes[x].nodeName == 'item') {
-											xmlItems = xmlChannel.childNodes[x];
-											var title, link = false;
-											for (var y = 0; y < xmlItems.childNodes.length; y++) {
-												if (xmlItems.childNodes[y].nodeName == 'title') {      												    
-													title = xmlItems.childNodes[y].lastChild.nodeValue;
-												}
-												else if (xmlItems.childNodes[y].nodeName == 'link') {												    
-													link = xmlItems.childNodes[y].lastChild.nodeValue; 
-												}
-												if ((title !== false && title != '') && link !== false) {
-												    settings.newsArr['item-' + count] = { type: opts.titleText, content: '<a href="' + link + '">' + title + '</a>' };												    count++;												    title = false;												    link = false;
-												}
-											}	
-										}		
-									}			
-									// quick check here to see if we actually have any content - log error if not
-									if (countSize(settings.newsArr < 1)) {
-										debugError('Couldn\'t find any content from the XML feed for the ticker to use!');
-										return false;
-									}
-									settings.contentLoaded = true;
-									setupContentAndTriggerDisplay();
-								}
-							});							
-						}
-						else {
-							debugError('Code Me!');	
-						}						
-					}
-					else if (opts.htmlFeed) { 
-						if($(newsID + ' LI').length > 0) {
-							$(newsID + ' LI').each(function (i) {
-								// maybe this could be one whole object and not an array of objects?
-								settings.newsArr['item-' + i] = { type: opts.titleText, content: $(this).html()};
-							});		
-						}	
-						else {
-							debugError('Couldn\'t find HTML any content for the ticker to use!');
-							return false;
-						}
-					}
-					else {
-						debugError('The ticker is set to not use any types of content! Check the settings for the ticker.');
-						return false;
-					}					
-				}			
-			}
-
-			function setupContentAndTriggerDisplay() {
-
-				settings.contentLoaded = true;
-
-				// update the ticker content with the correct item
-				// insert news content into DOM
-				$(settings.dom.titleElem).html(settings.newsArr['item-' + settings.position].type);
-				$(settings.dom.contentID).html(settings.newsArr['item-' + settings.position].content);
-
-				// set the next content item to be used - loop round if we are at the end of the content
-				if (settings.position == (countSize(settings.newsArr) -1)) {
-					settings.position = 0;
-				}
-				else {		
-					settings.position++;
-				}			
-
-				// get the values of content and set the time of the reveal (so all reveals have the same speed regardless of content size)
-				distance = $(settings.dom.contentID).width();
-				time = distance / opts.speed;
-
-				// start the ticker animation						
-				revealContent();		
-			}
-
-			// slide back cover or fade in content
-			function revealContent() {
-				$(settings.dom.contentID).css('opacity', '1');
-				if(settings.play) {	
-					// get the width of the title element to offset the content and reveal	
-					var offset = $(settings.dom.titleID).width() + 20;
-	
-					$(settings.dom.revealID).css(opts.direction, offset + 'px');
-					// show the reveal element and start the animation
-					if (opts.displayType == 'fade') {
-						// fade in effect ticker
-						$(settings.dom.revealID).hide(0, function () {
-							$(settings.dom.contentID).css(opts.direction, offset + 'px').fadeIn(opts.fadeInSpeed, postReveal);
-						});						
-					}
-					else if (opts.displayType == 'scroll') {
-						// to code
-					}
-					else {
-						// default bbc scroll effect
-						$(settings.dom.revealElem).show(0, function () {
-							$(settings.dom.contentID).css(opts.direction, offset + 'px').show();
-							// set our animation direction
-							animationAction = opts.direction == 'right' ? { marginRight: distance + 'px'} : { marginLeft: distance + 'px' };
-							$(settings.dom.revealID).css('margin-' + opts.direction, '0px').delay(20).animate(animationAction, time, 'linear', postReveal);
-						});		
-					}
-				}
-				else {
-					return false;					
-				}
-			};
-
-			// here we hide the current content and reset the ticker elements to a default state ready for the next ticker item
-			function postReveal() {				
-				if(settings.play) {		
-					// we have to separately fade the content out here to get around an IE bug - needs further investigation
-					$(settings.dom.contentID).delay(opts.pauseOnItems).fadeOut(opts.fadeOutSpeed);
-					// deal with the rest of the content, prepare the DOM and trigger the next ticker
-					if (opts.displayType == 'fade') {
-						$(settings.dom.contentID).fadeOut(opts.fadeOutSpeed, function () {
-							$(settings.dom.wrapperID)
-								.find(settings.dom.revealElem + ',' + settings.dom.contentID)
-									.hide()
-								.end().find(settings.dom.tickerID + ',' + settings.dom.revealID)
-									.show()
-								.end().find(settings.dom.tickerID + ',' + settings.dom.revealID)
-									.removeAttr('style');								
-							setupContentAndTriggerDisplay();						
-						});
-					}
-					else {
-						$(settings.dom.revealID).hide(0, function () {
-							$(settings.dom.contentID).fadeOut(opts.fadeOutSpeed, function () {
-								$(settings.dom.wrapperID)
-									.find(settings.dom.revealElem + ',' + settings.dom.contentID)
-										.hide()
-									.end().find(settings.dom.tickerID + ',' + settings.dom.revealID)
-										.show()
-									.end().find(settings.dom.tickerID + ',' + settings.dom.revealID)
-										.removeAttr('style');								
-								setupContentAndTriggerDisplay();						
-							});
-						});	
-					}
-				}
-				else {
-					$(settings.dom.revealElem).hide();
-				}
-			}
-
-			// pause ticker
-			function pauseTicker() {				
-				settings.play = false;
-				// stop animation and show content - must pass "true, true" to the stop function, or we can get some funky behaviour
-				$(settings.dom.tickerID + ',' + settings.dom.revealID + ',' + settings.dom.titleID + ',' + settings.dom.titleElem + ',' + settings.dom.revealElem + ',' + settings.dom.contentID).stop(true, true);
-				$(settings.dom.revealID + ',' + settings.dom.revealElem).hide();
-				$(settings.dom.wrapperID)
-					.find(settings.dom.titleID + ',' + settings.dom.titleElem).show()
-						.end().find(settings.dom.contentID).show();
-			}
-
-			// play ticker
-			function restartTicker() {				
-				settings.play = true;
-				settings.paused = false;
-				// start the ticker again
-				postReveal();	
-			}
-
-			// change the content on user input
-			function manualChangeContent(direction) {
-				pauseTicker();
-				switch (direction) {
-					case 'prev':
-						if (settings.position == 0) {
-							settings.position = countSize(settings.newsArr) -2;
-						}
-						else if (settings.position == 1) {
-							settings.position = countSize(settings.newsArr) -1;
-						}
-						else {
-							settings.position = settings.position - 2;
-						}
-						$(settings.dom.titleElem).html(settings.newsArr['item-' + settings.position].type);
-						$(settings.dom.contentID).html(settings.newsArr['item-' + settings.position].content);						
-						break;
-					case 'next':
-						$(settings.dom.titleElem).html(settings.newsArr['item-' + settings.position].type);
-						$(settings.dom.contentID).html(settings.newsArr['item-' + settings.position].content);
-						break;
-				}
-				// set the next content item to be used - loop round if we are at the end of the content
-				if (settings.position == (countSize(settings.newsArr) -1)) {
-					settings.position = 0;
-				}
-				else {		
-					settings.position++;
-				}	
-			}
-		});  
-	};  
-
-	// plugin defaults - added as a property on our plugin function
-	$.fn.ticker.defaults = {
-		speed: 0.10,			
-		ajaxFeed: false,
-		feedUrl: '',
-		feedType: 'xml',
-		displayType: 'reveal',
-		htmlFeed: true,
-		debugMode: true,
-		controls: true,
-		titleText: 'Latest',	
-		direction: 'ltr',	
-		pauseOnItems: 3000,
-		fadeInSpeed: 600,
-		fadeOutSpeed: 300
-	};	
-})(jQuery);
-	</script> 
+	 
 	
 <style>
-.ticker-wrapper.has-js{margin:20px 0;padding:0 20px;width:780px;height:32px;display:block;-webkit-border-radius:15px;-moz-border-radius:15px;border-radius:15px;background-color:#f8f0db;font-size:.75em} 
-.ticker{width:710px;height:23px;display:block;position:relative;overflow:hidden;background-color:#f8f0db} 
-.ticker-title{padding-top:9px;color:#900;font-weight:700;background-color:#f8f0db;text-transform:uppercase} 
-.ticker-content{margin:0;padding-top:9px;position:absolute;color:#1F527B;font-weight:700;background-color:#f8f0db;overflow:hidden;white-space:nowrap;line-height:1.2em} 
-.ticker-content a{text-decoration:none;color:#1F527B} 
-.ticker-content a:hover{text-decoration:underline;color:#0D3059} 
-.ticker-swipe{padding-top:9px;position:absolute;top:0;background-color:#f8f0db;display:block;width:800px;height:23px} 
-.ticker-swipe span{margin-left:1px;background-color:#f8f0db;border-bottom:1px solid #1F527B;height:12px;width:7px;display:block} 
-.ticker-controls{padding:8px 0 0;list-style-type:none;float:left} 
-.ticker-controls li{padding:0;margin-left:5px;float:left;cursor:pointer;height:16px;width:16px;display:block} 
-.ticker-controls li.jnt-play-pause{background-image:url(../images/controls.png);background-position:32px 16px} 
-.ticker-controls li.jnt-play-pause.over{background-position:32px 32px} 
-.ticker-controls li.jnt-play-pause.down{background-position:32px 0} 
-.ticker-controls li.jnt-play-pause.paused{background-image:url(../images/controls.png);background-position:48px 16px} 
-.ticker-controls li.jnt-play-pause.paused.over{background-position:48px 32px} 
-.ticker-controls li.jnt-play-pause.paused.down{background-position:48px 0} 
-.ticker-controls li.jnt-prev{background-image:url(../images/controls.png);background-position:0 16px} 
-.ticker-controls li.jnt-prev.over{background-position:0 32px} 
-.ticker-controls li.jnt-prev.down{background-position:0 0} 
-.ticker-controls li.jnt-next{background-image:url(../images/controls.png);background-position:16px 16px} 
-.ticker-controls li.jnt-next.over{background-position:16px 32px} 
-.ticker-controls li.jnt-next.down{background-position:16px 0} 
-.js-hidden{display:none} 
-.no-js-news{padding:10px 0 0 45px;color:#F8F0DB} 
-.left .ticker-controls,.left .ticker-content,.left .ticker-title,.left .ticker{float:left} 
-.left .ticker-controls{padding-left:6px} 
-.right .ticker-controls,.right .ticker-content,.right .ticker-title,.right .ticker{float:right} 
-.right .ticker-controls{padding-right:6px}
-/*########Blogger Newsticker by MBT#########*/ 
-.ticker-wrapper.has-js{margin:0;padding:0;width:98%;height:42px;display:block;border-radius:0;background-color:#fff;border:1px solid #eee;font-size:12px} 
-.ticker{width:80%;height:42px;display:block;position:relative;overflow:hidden;background-color:#fff} 
-.ticker-title{background:#71db00;padding:10px;color:#FFF;font-size:16px;font-family:oswald;text-transform:uppercase;text-shadow:1px 1px 6px #666} 
-.ticker-title:after{left:76px;top:10px;height:0;width:0;position:absolute;content:" ";pointer-events:none;margin-left:0;margin-top:1px;border-left:13px solid #71db00;border-top:10px solid transparent;border-bottom:10px solid transparent;-moz-transform:scale(.9999)} 
-.ticker-content{background-color:#fff;margin-left:15px;color:#444;margin-top:1px} 
-.ticker-swipe{background-color:#fff;position:relative;top:5px;left:100px!important} 
-.ticker-swipe span{margin-left:1px;background-color:#fff;border-bottom:1px solid #333;height:12px;width:7px} 
-.ticker-controls{padding:0!important;margin:13px 0 0 10px !important;list-style-type:none;position:relative;right:-50px} 
-.ticker-controls li{padding:0;margin-left:5px;float:left;cursor:pointer;height:16px;width:16px;display:block} 
-.ticker-controls li a{border:0!important;padding:0!important} 
-.ticker-controls li.jnt-play-pause,.ticker-controls li.jnt-play-pause.paused,.ticker-controls li.jnt-play-pause.paused.over,.ticker-controls li.jnt-prev,.ticker-controls li.jnt-play-pause.over,.ticker-controls li.jnt-next{position:absolute;background:none} 
-.ticker-controls li.jnt-play-pause:after,.ticker-controls li.jnt-play-pause.over:after{content:"\f04c";font-size:13px;color:#71db00;font-family:fontAwesome;position:relative;left:1.8em} 
-.ticker-controls li.jnt-play-pause.paused:after,.ticker-controls li.jnt-play-pause.paused.over:after{content:"\f04b";font-size:13px;color:#71db00;font-family:fontAwesome;position:relative;left:1.8em} 
-.ticker-controls li.jnt-prev:after{content:"\f04a";font-size:13px;color:#71db00;font-family:fontAwesome;position:relative;left:0} 
-.ticker-controls li.jnt-next:after{content:"\f04e";font-size:13px;color:#71db00;font-family:fontAwesome;position:relative;left:3.6em} 
-.ticker .iauthor:before,.ticker .icomments:before,.ticker .idate:before{font-family:fontAwesome;position:relative;padding-right:8px;color:#fff} 
-.ticker .iauthorpic{width:16px!important;height:16px!important;border-radius:50%;float:none;display:inline-block!important;margin:0;padding-right:3px;position:relative;top:3px} 
-.ticker span{padding-right:5px;font-family:Oswald;font-weight:400} 
-.ticker .icomments a{color:#71db00;font-size:11px} 
-.ticker .icomments a:hover{text-decoration:underline} 
-.ticker .icomments:before{content:'\f086';padding:0 3px 0 0;color:#777;position:relative;top:-1px} 
-.ticker .idate{font-size:11px;padding-right:7px} 
-.ticker .idate:before{content:'\f073';padding:0 5px;color:#777;position:relative;top:-1px} 
-.ticker .mbttitle{font-family:oswald;font-size:14px;color:#71db00!important;font-weight:400;text-decoration:none} 
-.ticker .mbttitle:hover{text-decoration:underline}
+.mbtlist {list-style-type:none;overflow:hidden; padding:10px!important;} 
+.mbtlist li {margin:0px auto 20px auto; clear:both; color:#666; font-family:helvetica; font-size:12px; } 
+.mbtlist i{color:#999; padding-right:4px; } 
+.mbtlist .iline{line-height:2em; clear:both; border:1px solid #eee; margin-top:10px; padding: 0px 4px;   font-size: 12px;} 
+.mbtlist div span{margin:0 10px 0 0; display:inline-block;} 
+.mbtlist span {display:block; margin:5px 0px 0px; padding-right:5px;} 
+.mbtlist .icon {color: #999;font-family: verdana;font-size: 12px;text-align: justify;} 
+.mbtlist img {float:left; margin:0px 10px 10px 0px; border:6px solid #fff; padding:0px; width:150px; height:100px; box-shadow:-1px -1px 4px #777; } 
+.mbtlist .mbttitle {font-family:oswald; font-size:18px; color:#0080ff; font-weight:normal; text-decoration:none;    line-height: 1.4em;} 
+.mbtlist .mbttitle:hover, .mbtlist .itotal a:hover  {color:#00A5FF;} 
+.mbtlist .iedit a{text-decoration:none; color:#999; cursor:pointer} 
+.mbtlist .iedit:before, .mbtlist .iauthor:before, .mbtlist .itag:before, .mbtlist .icomments:before, .mbtlist .idate:before, .mbtlist .itotal span:before{font-family:fontAwesome; position:relative; padding-right:5px;} 
+.mbtlist .iauthor:before {content:'\f007';} 
+.mbtlist .itag:before {content:'\f02c';} 
+.mbtlist .icomments:before {content:'\f086';} 
+.mbtlist .idate:before {content:'\f017';} 
+.mbtlist .iedit:before {content:'\f040';}.mbtlist .imore {font-size:12px; font-weight:bold; text-decoration:none; color:#999;}.mbtlist .itotal {color:#333;  padding:5px 10px; border:1px solid #eee;}.mbtlist .itotal a {font-family:oswald; font-size:12px; font-weight:normal; color:#0080ff; text-decoration:none}.mbtlist .itotal span:before {content:'\f07c';}.mbtlist .itotal span font {padding:0px 3px; color:#333; font-family:georgia; font-size:15px; font-weight:bold}#mbtloading1{ margin: 20% auto; 
+background: url('http://downloads.mybloggertricks.com/Spin%20and%20pulsate.gif') no-repeat left center;width: 80px;height: 80px;}
+/*------ CSS3 Tooltip Shortcode -------------*/ 
+.tooltip1{outline:none;text-decoration:none!important;position:relative;color: orange!important; font-weight: bold;}.tooltip1:hover {border-bottom: none;}.tooltip1 strong{line-height:30px}.tooltip1 > span{max-width:300px;width:115px;padding:5px 8px;opacity:0;bottom:170%;left:0px; visibility:hidden;z-index:10;position:absolute;font-family:helvetica;font-size:12px;font-weight:bold;border-radius:2px;box-shadow:2px 2px 5px #999;-webkit-transition-property:opacity,margin-top,visibility,margin-left;-webkit-transition-duration:0.4s,0.3s,0.4s,.3s;-webkit-transition-timing-function:ease-in-out,ease-in-out,ease-in-out,ease-in-out;transition-property:opacity,margin-top,visibility,margin-left;transition-duration:0.4s,0.3s,0.4s,.3s;transition-timing-function:ease-in-out,ease-in-out,ease-in-out,ease-in-out}.tooltip1 > span img{float:right;width:110px;margin:0 0 30px 10px;padding: 0;border: none;}.tooltip1:hover > span{opacity:1;text-decoration:none;visibility:visible;overflow:visible;display:inline;margin-left:-90px}.tooltip1 span b{width:15px;height:15px;right:25px;bottom:-9px;display:block;position:absolute;-webkit-transform:rotate(-45deg);-moz-transform:rotate(-45deg);-o-transform:rotate(-45deg);transform:rotate(-45deg);display:none\0/;*display:none}.tooltip1 > span{color:#fff;background:orange;border:1px solid #ffffff}.tooltip1 span b{background:orange;border-bottom:1px solid #ffffff;border-left:1px solid #ffffff}
 </style>
-
 
 </head>
 <body>
@@ -538,69 +75,144 @@ function getQueryVariable(variable) {
 var ListBlogLink = getQueryVariable("url");
 </script>
   
-<script type="text/javascript"> 
-//----------------------------Defaults 
-var ListBlogLink = getQueryVariable("url"); 
+	
+	<div id="mbtloading1" ></div> 
+<script type="text/javascript">
+//#################### Defaults 
+var ListBlogLink = window.location.hostname; 
 var ListCount = 5; 
-var TitleCount = 70; 
-var ListLabel = "Life";
-//----------------------------Function Start 
+var ChrCount = 150; 
+var TitleCount = 66; 
+var ImageSize = 200; 
+//################ Function Start 
 function mbtlist(json) { 
-document.write('<ul id="js-news" class="js-hidden">'); 
+document.write('<ul class="mbtlist">'); 
 for (var i = 0; i < ListCount; i++) 
-{
-//-----------------------------Variables Declared 
-var listing= ListImage = ListUrl = ListTitle = ListImage = ListContent = ListConten = ListAuthor = ListTag = ListDate = ListUpdate = ListComments = thumbUrl = TotalPosts = sk = AuthorPic= ListMonth = Y = D = M = m = YY = DD = MM = mm = TT =  ""; 
-//----------------------------- Title URL 
+{ 
+//################### Variables Declared 
+var listing= ListImage = ListUrl = ListTitle = ListImage = ListContent = ListConten = ListAuthor = ListTag = ListDate = ListUpdate = ListComments = thumbUrl = TotalPosts = sk = ListMonth = Y = D = M = m = YY = DD = MM = mm = TT =  "";
+//################### Category 
+if (json.feed.entry[i].category != null) 
+{ 
+for (var k = 0; k < json.feed.entry[i].category.length; k++) { 
+    ListTag += json.feed.entry[i].category[k].term; 
+if(k < json.feed.entry[i].category.length-1) 
+{ ListTag += ", ";} 
+} 
+}
+//################### URL 
 for (var j = 0; j < json.feed.entry[i].link.length; j++) { 
-if (json.feed.entry[i].link[j].rel == 'alternate') { 
-break; 
-} 
-} 
-ListUrl= "'" + json.feed.entry[i].link[j].href + "'"; 
-//----------------------------------- Title Stirng 
+      if (json.feed.entry[i].link[j].rel == 'alternate') { 
+        break; 
+      } 
+    } 
+ListUrl= "'" + json.feed.entry[i].link[j].href + "'";
+//################### Info 
+TotalPosts = json.feed.openSearch$totalResults.$t; 
 if (json.feed.entry[i].title!= null) 
 { 
 ListTitle= json.feed.entry[i].title.$t.substr(0, TitleCount); 
-}
+} 
 if (json.feed.entry[i].thr$total) 
 { 
-ListComments= "<a href='"+json.feed.entry[i].link[j].href+"#comment-form'>"+json.feed.entry[i].thr$total.$t+"</a>"; 
+ListComments= json.feed.entry[i].thr$total.$t; 
 } 
 ListAuthor= json.feed.entry[i].author[0].name.$t.split(" "); 
-ListAuthor=ListAuthor.slice(0, 1).join(" "); 
-AuthorPic = json.feed.entry[i].author[0].gd$image.src;
+ListAuthor=ListAuthor.slice(0, 1).join(" ");
+
+//################### Content Check
+ListConten = json.feed.entry[i].content.$t; 
+ListContent= ListConten.replace(/(<([^>]+)>)/ig,"").substring(0, ChrCount);
 //################### Date Format
 ListMonth= ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 ListDate= json.feed.entry[i].published.$t.substring(0,10);
                          Y = ListDate.substring(0, 4); 
                         m = ListDate.substring(5, 7); 
                          D = ListDate.substring(8, 10); 
-                         M = ListMonth[parseInt(m - 1)];  
-//----------------------------------- Printing List 
-var listing = "<li class='news-item'><span class='iauthor'><img class='iauthorpic' src='"+AuthorPic+"'/>" 
-+ListAuthor+ "</span> <span class='icomments'>" 
-+ListComments + "</span>  <span class='idate'>" 
-+ D + " " + M + "</span><i class='fa fa-chevron-right'></i> <a class='mbttitle' href=" 
-+ListUrl+ 
+                         M = ListMonth[parseInt(m - 1)];                       
+ListUpdate= json.feed.entry[i].updated.$t.substring(0, 16);
+                         YY = ListUpdate.substring(0, 4); 
+                        mm = ListUpdate.substring(5, 7); 
+                         DD = ListUpdate.substring(8, 10); 
+                         TT = ListUpdate.substring(11, 16); 
+                         MM = ListMonth[parseInt(mm - 1)];   
+//################### Thumbnail Check 
+// YouTube scan
+if (json.feed.entry[i].content.$t.match(/youtube\.com.*(\?v=|\/embed\/)(.{11})/) != null) 
+{
+    var youtube_id = json.feed.entry[i].content.$t.match(/youtube\.com.*(\?v=|\/embed\/)(.{11})/).pop(); 
+    
+    if (youtube_id.length == 11) { 
+        var ListImage = "'//img.youtube.com/vi/"+youtube_id+"/0.jpg'"; 
+        } 
+}
+else if (json.feed.entry[i].media$thumbnail) 
+{ 
+thumbUrl = json.feed.entry[i].media$thumbnail.url; 
+sk= thumbUrl.replace("/s72-c/","/s"+ImageSize+"/"); 
+ListImage= "'" + sk.replace("?imgmax=800","") + "'"; 
+}
+else if (json.feed.entry[i].content.$t.match(/src=(.+?[\.jpg|\.gif|\.png]")/) != null) 
+{ 
+// Support For 3rd Party Images 
+ListImage =  json.feed.entry[i].content.$t.match(/src=(.+?[\.jpg|\.gif|\.png]")/)[1]; 
+} 
+else 
+{ 
+ListImage= "'http://4.bp.blogspot.com/-HALLtgFeep0/VfryhQ0C5oI/AAAAAAAAPcY/77mSGND4q84/s200/Icon.png'"; 
+} 
+//################### Printing List
+var listing = "<li class='node"+[i]+"' ><a href=" 
++ ListUrl+ 
+  "><img src=" 
++ListImage+ 
+"/></a><a class='mbttitle' href=" 
++ ListUrl+ 
 "target='_blank'>" 
-+ListTitle+ 
-"</a></li>"; 
++ ListTitle+ 
+"</a> <span class='icon'>" 
++ListContent+ 
+" ...  <a href=" 
++ListUrl+ 
+" class='imore'>more »</a></span><div class='iline'><span class='iauthor'>" 
++ListAuthor+ 
+"</span><span class='itag'>" 
++ListTag+ 
+"</span><span class='icomments'>" 
++ ListComments+ 
+"</span><span class='idate'>" 
++ M + 
+" " 
++ D + 
+", " 
++ Y +
+"</span><span class='iedit'> <a class='tooltip1'>Edited<span><b></b>On ► " 
++ MM + 
+" " 
++ DD + 
+", " 
++ YY + 
+" at ► " 
++TT+ 
+" </span></a> </span></div></li>"; 
 document.write(listing); 
 } 
+document.write("<div class='itotal'><span> <a href='"+ListBlogLink+"/search'>View all <font>"+TotalPosts+"</font> posts</a></span></div></ul>"); 
 } 
-document.write("</ul><script src='"+ListBlogLink+"/feeds/posts/default/-/"+ListLabel+"?alt=json-in-script&callback=mbtlist'></"+"script>");
-/*##########Breaking News Ticker Settings########*/ 
-    $(function () { 
-        $('#js-news').ticker({ 
-        speed: 0.20, 
-        controls: true,   
-        titleText: 'Hottest', 
-        displayType: 'reveal', 
-        pauseOnItems: 2000,    
-}); 
-}); 
-</script>  
+</script>
+<script> 
+var ListBlogLink = getQueryVariable("url");
+var ListCount = 5; 
+</script>
+<script> 
+document.write("<script src='"+ListBlogLink+"/feeds/posts/default?alt=json-in-script&callback=mbtlist'></"+"script>"); 
+</script>
+<script> 
+document.getElementById("mbtloading1").style.display = "none";</script>
+	
+	
+	
+
   
 </body>
 </html>
