@@ -90,7 +90,7 @@ document.write('<ul class="mbtlist">');
 for (var i = 0; i < ListCount; i++) 
 { 
 //################### Variables Declared 
-var listing= ListImage = ListUrl = ListTitle = ListImage = ListContent = ListConten = ListAuthor = ListTag = ListDate = ListUpdate = ListComments = thumbUrl = TotalPosts = sk = ListMonth = Y = D = M = m = YY = DD = MM = mm = TT =  "";
+var listing= ListImage = ListUrl = ListTitle = ListImage = ListContent = ListConten = ListAuthor = ListTag = thumbUrl = TotalPosts = sk = ListMonth = Y = D = M = m = YY = DD = MM = mm = TT =  "";
 //################### Category 
 if (json.feed.entry[i].category != null) 
 { 
@@ -178,23 +178,8 @@ var listing = "<li class='node"+[i]+"' ><a href="
 +ListAuthor+ 
 "</span><span class='itag'>" 
 +ListTag+ 
-"</span><span class='icomments'>" 
-+ ListComments+ 
-"</span><span class='idate'>" 
-+ M + 
-" " 
-+ D + 
-", " 
-+ Y +
-"</span><span class='iedit'> <a class='tooltip1'>Edited<span><b></b>On ► " 
-+ MM + 
-" " 
-+ DD + 
-", " 
-+ YY + 
-" at ► " 
-+TT+ 
-" </span></a> </span></div></li>"; 
+"</span>
+<b></b></span></a> </span></div></li>"; 
 document.write(listing); 
 } 
 document.write("<div class='itotal'><span> <a href='"+ListBlogLink+"/search'>View all <font>"+TotalPosts+"</font> posts</a></span></div></ul>"); 
